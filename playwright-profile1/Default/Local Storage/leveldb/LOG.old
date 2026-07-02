@@ -1,0 +1,18 @@
+2026/07/01-14:19:19.777 25b8 Reusing MANIFEST C:\Users\onl033\Downloads\Image Analyzer (1)\Image Analyzer\backend\playwright-profile1\Default\Local Storage\leveldb/MANIFEST-000001
+2026/07/01-14:19:19.784 25b8 Recovering log #199
+2026/07/01-14:19:19.787 25b8 Reusing old log C:\Users\onl033\Downloads\Image Analyzer (1)\Image Analyzer\backend\playwright-profile1\Default\Local Storage\leveldb/000199.log 
+2026/07/01-14:20:19.796 25b8 Level-0 table #203: started
+2026/07/01-14:20:19.802 25b8 Level-0 table #203: 18865 bytes OK
+2026/07/01-14:20:19.804 25b8 Delete type=0 #199
+2026/07/01-14:24:20.210 25b8 Level-0 table #205: started
+2026/07/01-14:24:20.216 25b8 Level-0 table #205: 15227 bytes OK
+2026/07/01-14:24:20.218 25b8 Delete type=0 #202
+2026/07/01-14:24:20.218 25b8 Compacting 4@0 + 1@1 files
+2026/07/01-14:24:20.223 25b8 Generated table #206@0: 36 keys, 20070 bytes
+2026/07/01-14:24:20.223 25b8 Compacted 4@0 + 1@1 files => 20070 bytes
+2026/07/01-14:24:20.224 25b8 compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/07/01-14:24:20.225 25b8 Delete type=2 #195
+2026/07/01-14:24:20.225 25b8 Delete type=2 #198
+2026/07/01-14:24:20.225 25b8 Delete type=2 #200
+2026/07/01-14:24:20.225 25b8 Delete type=2 #203
+2026/07/01-14:24:20.225 25b8 Delete type=2 #205

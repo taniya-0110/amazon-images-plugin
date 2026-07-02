@@ -1,0 +1,9 @@
+2026/07/01-14:25:31.860 173c Reusing MANIFEST C:\Users\onl033\Downloads\Image Analyzer (1)\Image Analyzer\backend\playwright-profile1\Default\Local Storage\leveldb/MANIFEST-000001
+2026/07/01-14:25:31.869 173c Recovering log #204
+2026/07/01-14:25:31.872 173c Reusing old log C:\Users\onl033\Downloads\Image Analyzer (1)\Image Analyzer\backend\playwright-profile1\Default\Local Storage\leveldb/000204.log 
+2026/07/01-14:26:31.882 1348 Level-0 table #209: started
+2026/07/01-14:26:31.887 1348 Level-0 table #209: 26180 bytes OK
+2026/07/01-14:26:31.890 1348 Delete type=0 #204
+2026/07/01-14:32:38.071 1348 Level-0 table #211: started
+2026/07/01-14:32:38.083 1348 Level-0 table #211: 15239 bytes OK
+2026/07/01-14:32:38.087 1348 Delete type=0 #208
