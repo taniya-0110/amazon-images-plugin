@@ -496,9 +496,6 @@ async function runAutomation(images) {
 // ==========================================
 // START SERVER
 // ==========================================
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server is running on port ${PORT}`);
-});
 
 app.listen(PORT, () => {
   console.log(`\nAmazon Image Analyzer Backend running on ${BACKEND_URL}`);
