@@ -9,7 +9,7 @@ const ChatGPTAutomation = require('./chatgptAutomation');
 dotenv.config();
 
 const app = express();
-// const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000;
 const BACKEND_URL = process.env.BACKEND_URL;
 
 // Middleware
@@ -496,14 +496,18 @@ async function runAutomation(images) {
 // ==========================================
 // START SERVER
 // ==========================================
-app.listen(BACKEND_URL, () => {
-  console.log(`\n🚀 Amazon Image Analyzer Backend running on ${BACKEND_URL}`);
-  console.log(`📊 API Endpoints:`);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server is running on port ${PORT}`);
+});
+
+app.listen(PORT, () => {
+  console.log(`\nAmazon Image Analyzer Backend running on ${BACKEND_URL}`);
+  console.log(`API Endpoints:`);
   console.log(`   GET  /api/health           - Health check`);
   console.log(`   GET  /api/status           - Current status`);
   console.log(`   GET  /api/analysis-results - Analysis results`);
   console.log(`   GET  /api/results          - All results`);
   console.log(`   POST /api/analyze-images   - Start analysis`);
   console.log(`   POST /api/continue         - Continue to next image`);
-  console.log(`\n📁 Generated images served at: ${BACKEND_URL}/generated-images/`);
+  console.log(`\nGenerated images served at: ${BACKEND_URL}/generated-images/`);
 });
