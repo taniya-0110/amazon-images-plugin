@@ -17,6 +17,10 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+app.get('/', (req, res) => {
+  res.send('Backend is running perfectly!');
+});
+
 // Serve generated and temporary listing images statically
 app.use('/generated-images', express.static(path.join(__dirname, 'generated_images')));
 app.use('/temp-images', express.static(path.join(__dirname, 'temp_images')));
