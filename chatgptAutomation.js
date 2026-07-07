@@ -80,7 +80,6 @@ class ChatGPTAutomation {
         this.profileFolder,
         {
           headless: false, // Keep false so the engine mounts selectors properly
-          channel: 'chrome',
           viewport: { width: 1280, height: 800 }, // Explicit desktop bounds
           args: [
             '--disable-blink-features=AutomationControlled',
