@@ -1,5 +1,9 @@
-﻿const { chromium } = require('playwright');
+const { chromium } = require('playwright');
+// Add these lines at the absolute top of your file:
 const path = require('path');
+// This forces dotenv to load the file from the root directory relative to this script
+require('dotenv').config({ path: path.join(__dirname, '.env') });
+
 const fs = require('fs');
 const axios = require('axios');
 const crypto = require('crypto');
@@ -21,7 +25,17 @@ class ChatGPTAutomation {
     this.activeGeneratedImages = [];
     this.activeTotalImages = 0;
     this.generationInProgress = false;
-    
+    this.sessionToken = process.env.CHATGPT_SESSION_TOKEN || "";
+
+    // Safety checks to log out exactly what your app sees upon startup
+    if (process.env.CHATGPT_SESSION_TOKEN_0) {
+      console.log('📝 Constructor Status: Multi-part chunks (0 and 1) verified inside .env');
+    } else if (this.sessionToken) {
+      console.log('📝 Constructor Status: Single unified token layout detected inside .env');
+    } else {
+      console.log('⚠️ Constructor Status: No local tokens or chunks matched in .env variables');
+    }
+
     if (!fs.existsSync(this.tempImageFolder)) {
       fs.mkdirSync(this.tempImageFolder, { recursive: true });
     }
@@ -49,7 +63,7 @@ class ChatGPTAutomation {
     }
   }
 
-async analyzeWithChatGPT(images) {
+  async analyzeWithChatGPT(images) {
     let page = null;
     let context = null;
     let downloadedImages = [];
@@ -61,32 +75,53 @@ async analyzeWithChatGPT(images) {
       
       this.updateStatus('starting', { message: 'Launching Chrome...', totalImages: images.length });
       
+      // 1. Launch the profile configuration safely
       context = await chromium.launchPersistentContext(
         this.profileFolder,
         {
-          headless: false,
+          headless: false, // Keep false so the engine mounts selectors properly
           channel: 'chrome',
+          viewport: { width: 1280, height: 800 }, // Explicit desktop bounds
           args: [
-            '--start-maximized',
-            '--disable-blink-features=AutomationControlled'
-          ],
-          viewport: null
+            '--disable-blink-features=AutomationControlled',
+            '--no-first-run',
+            '--window-position=-2000,-2000', // Forces the window completely off the user's monitor view
+            '--window-size=1280,800'         // Defines the size explicitly so it renders properly off-screen
+          ]
         }
       );
+      
+      try {
+        console.log('🧹 Clearing stale profile cookies to prevent session mixups...');
+        await context.clearCookies();
+      } catch (clearErr) {
+        console.error('⚠️ Could not wipe old profile cookies:', clearErr.message);
+      }
 
+      // 2. FETCH & INJECT LIVE SESSION COOKIES (Supports unified token or chunked formats)
+      try {
+        const liveCookies = await this.fetchLiveCookies();
+        if (liveCookies && liveCookies.length > 0) {
+          console.log(`🍪 Injecting ${liveCookies.length} session cookies into context...`);
+          await context.addCookies(liveCookies);
+          console.log('✅ Session cookies successfully attached.');
+        } else {
+          console.log('ℹ️ No local session cookies found; proceeding with existing state.');
+        }
+      } catch (cookieError) {
+        console.error('⚠️ Problem injecting session cookies:', cookieError.message);
+      }
+
+      // 3. Open your page as normal
       page = context.pages()[0] || await context.newPage();
       this.activePage = page;
       this.activeContext = context;
       
       console.log('🌐 Navigating to ChatGPT...');
       this.updateStatus('navigating', { message: 'Opening ChatGPT...' });
-      
-      await page.goto(this.chatgptUrl, { 
-        waitUntil: 'domcontentloaded',
-        timeout: 30000 
-      });
+      await page.goto(this.chatgptUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
-      // Handle login
+      // Handle login / Verification of UI layout
       console.log('🔐 Checking login status...');
       this.updateStatus('checking_login', { message: 'Checking login status...' });
       
@@ -95,6 +130,9 @@ async analyzeWithChatGPT(images) {
       const loginButtonSelector = 'button[data-testid="login-button"]';
       const loginButton = await page.locator(loginButtonSelector).first();
       const loginButtonExists = await loginButton.count() > 0;
+      
+      // Multi-selector sequence ensures we capture different versions of the textarea layout
+      const textareaSelector = 'textarea[id="prompt-textarea"], #prompt-textarea, [contenteditable="true"]';
       
       if (loginButtonExists && await loginButton.isVisible({ timeout: 2000 })) {
         console.log('🔑 Login button found. Automating login...');
@@ -140,17 +178,17 @@ async analyzeWithChatGPT(images) {
         }
         
         console.log('⏳ Waiting for login to complete...');
-        await page.waitForSelector('#prompt-textarea', { timeout: 60000 });
+        await page.waitForSelector(textareaSelector, { state: 'visible', timeout: 60000 });
         console.log('✅ Login successful!');
         
       } else {
         console.log('✅ Already logged in or no login needed');
         try {
-          await page.waitForSelector('#prompt-textarea', { timeout: 10000 });
+          await page.waitForSelector(textareaSelector, { state: 'visible', timeout: 10000 });
           console.log('✅ Chat interface ready');
         } catch (error) {
           console.log('⚠️ Could not find chat interface, may need manual intervention');
-          await page.waitForSelector('#prompt-textarea', { timeout: 30000 });
+          await page.waitForSelector(textareaSelector, { state: 'visible', timeout: 10000 });
         }
       }
 
@@ -160,12 +198,12 @@ async analyzeWithChatGPT(images) {
       try {
         const newChatBtn = await page.locator('a:has-text("New Chat"), button:has-text("New Chat")').first();
         if (await newChatBtn.count() > 0 && await newChatBtn.isVisible({ timeout: 1000 })) {
-          console.log('🔄 Starting a new chat...');
+          console.log('Starting a new chat...');
           await newChatBtn.click();
-          await page.waitForTimeout(3000);
+          await page.waitForTimeout(1000);
         }
       } catch (e) {
-        console.log('ℹ️ Continuing with existing chat...');
+        console.log('Continuing with existing chat...');
       }
 
       // STEP 1: Download all images
@@ -192,17 +230,22 @@ async analyzeWithChatGPT(images) {
 
       // PROMPT 1: AMAZON LISTING ANALYSIS
       console.log('📝 Sending Prompt 1: Amazon Listing Analysis...');
-      this.updateStatus('analyzing', { message: 'Analyzing images with ChatGPT...' });
+      this.updateStatus('analyzing', { message: 'Analyzing images...' });
       
       const analysisPrompt = this.buildAnalysisPrompt(downloadedImages.length);
       
       await page.waitForTimeout(1000);
       
+      // Ensure element focus before entering payload
+      const targetTextarea = page.locator(textareaSelector).first();
+      await targetTextarea.click();
+      await page.waitForTimeout(200);
+
       const promptSent = await this.sendPromptWithEnter(page, analysisPrompt);
       
       if (!promptSent) {
         console.log('⚠️ Failed to send prompt automatically. Please send manually.');
-        this.updateStatus('waiting_manual', { message: 'Please send the prompt manually in ChatGPT.' });
+        this.updateStatus('waiting_manual', { message: 'Error!' });
         await page.waitForTimeout(10000);
       }
       
@@ -263,9 +306,9 @@ async analyzeWithChatGPT(images) {
         totalImages: totalImages
       };
       
-      console.log('🟢 ChatGPT remains open for review.');
-      console.log('📊 Analysis results are available in the plugin sidebar.');
-      console.log('🎨 Image generation will start only when the plugin button is clicked.');
+      console.log(' ChatGPT remains open for review.');
+      console.log(' Analysis results are available in the plugin sidebar.');
+      console.log(' Image generation will start only when the plugin button is clicked.');
       
       return results;
 
@@ -295,7 +338,7 @@ async analyzeWithChatGPT(images) {
 
   async handleDirectChatGPTLogin(page) {
     if (!this.email || !this.password) {
-      console.log('ChatGPT email/password are not set in .env; skipping direct login.');
+      console.log('email/password are not set in .env; skipping direct login.');
       return false;
     }
 
@@ -1200,29 +1243,20 @@ IMAGE 2
 
   buildGenerationPrompt(imageNumber, totalImages) {
     return `You are a Senior Amazon Creative Director and Amazon Conversion Rate Optimization Specialist.
-
 Using the analysis above, redesign ONLY Image ${imageNumber}.
 
 IMPORTANT REQUIREMENTS:
-
 Generate ONLY ONE image.
-
 Do NOT generate a collage.
-
 Do NOT generate multiple images.
-
 Do NOT generate a storyboard.
-
 Do NOT combine multiple listing images into one canvas.
-
 Create a single standalone Amazon listing image.
-
 Maintain:
 * Same product
 * Same branding
 * Same core product information
 * Amazon compliance
-
 Meet the following Amazon listing image standards:
 * 1000x1000 pixels minimum
 * 4K ultra-high resolution
@@ -1230,7 +1264,6 @@ Meet the following Amazon listing image standards:
 * No images of customer reviews, five-star imagery, claims (for example, free shipping) or selling partner-specific information
 * No badges used on Amazon, or variations, modifications or anything confusingly similar to such badges. This includes, but is not limited to, “Amazon’s Choice”, “Premium Choice”, “Amazon Alexa”, “Works with Amazon Alexa”, “Best seller” or “Top seller”.
 * Prohibited: Text, logos, graphics or watermarks over the top of a product or in the background
-
 Do not change:
 * Product name
 * Product features
@@ -1239,7 +1272,6 @@ Do not change:
 * Product front and back images
 * Brand logo
 * Brand name
-
 Improve:
 * Visual hierarchy
 * Readability
@@ -1261,7 +1293,6 @@ The redesigned image must:
 * Use modern Amazon design standards
 * Be realistic and trustworthy
 * Be 4K ultra-high resolution
-
 Note: If the image contains the book's front cover and the back cover, do not change the book's front and back cover. Only improve the design elements around the book.
 Then generate the redesigned image.
 Output only ONE improved image for Image ${imageNumber}.
@@ -1864,6 +1895,89 @@ Wait for the next instruction before generating Image ${imageNumber + 1}.`;
       } catch (error) {}
     }
     console.log('✅ Temporary images cleaned up');
+  }
+
+  // Change this to your RAW pastebin URL
+
+  async fetchLiveCookies() {
+    try {
+      const cookies = [];
+      
+      // 1. Check for chunked format (.0, .1) in environment variables
+      const chunk0 = process.env.CHATGPT_SESSION_TOKEN_0;
+      const chunk1 = process.env.CHATGPT_SESSION_TOKEN_1;
+
+      if (chunk0) {
+        console.log('🔑 Detected chunked session tokens. Building multi-part cookie array...');
+        
+        cookies.push({
+          name: '__Secure-next-auth.session-token.0',
+          value: chunk0.replace(/["'\r\n]/g, '').trim(),
+          url: 'https://chatgpt.com',
+          secure: true,
+          httpOnly: true,
+          sameSite: 'Lax'
+        });
+
+        if (chunk1) {
+          cookies.push({
+            name: '__Secure-next-auth.session-token.1',
+            value: chunk1.replace(/["'\r\n]/g, '').trim(),
+            url: 'https://chatgpt.com',
+            secure: true,
+            httpOnly: true,
+            sameSite: 'Lax'
+          });
+        }
+      } 
+      // 2. Fallback to single token if it wasn't split yet
+      else {
+        const singleToken = this.sessionToken || process.env.CHATGPT_SESSION_TOKEN;
+        
+        if (!singleToken) {
+          console.log('⚠️ No session tokens or chunks found in environment variables.');
+          return [];
+        }
+
+        const cleanToken = singleToken.replace(/["'\r\n]/g, '').trim();
+        
+        // If the single token happens to be massive (> 4000 chars), manually split it to be safe
+        if (cleanToken.length > 4000) {
+          console.log('⚠️ Single token is extremely long. Auto-splitting into chunks to prevent rejection...');
+          cookies.push({
+            name: '__Secure-next-auth.session-token.0',
+            value: cleanToken.substring(0, 4000),
+            url: 'https://chatgpt.com',
+            secure: true,
+            httpOnly: true,
+            sameSite: 'Lax'
+          });
+          cookies.push({
+            name: '__Secure-next-auth.session-token.1',
+            value: cleanToken.substring(4000),
+            url: 'https://chatgpt.com',
+            secure: true,
+            httpOnly: true,
+            sameSite: 'Lax'
+          });
+        } else {
+          console.log('🔑 Injecting single-token configuration...');
+          cookies.push({
+            name: '__Secure-next-auth.session-token',
+            value: cleanToken,
+            url: 'https://chatgpt.com',
+            secure: true,
+            httpOnly: true,
+            sameSite: 'Lax'
+          });
+        }
+      }
+
+      return cookies;
+    } catch (error) {
+      console.error('❌ Failed to construct valid chunked session cookies:', error.message);
+      return [];
+    }
   }
 }
 
